@@ -26,48 +26,59 @@ serialport.pipe(xbeeAPI.parser);
 xbeeAPI.builder.pipe(serialport);
 
 serialport.on("open", function () {
-  var frame_obj = {
-    // AT Request to be sent
-    type: C.FRAME_TYPE.AT_COMMAND,
-    command: "NI",
-    commandParameter: [],
-  };
-
-  xbeeAPI.builder.write(frame_obj);
-
-  frame_obj = {
-    // AT Request to be sent
-    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
-    destination64: "FFFFFFFFFFFFFFFF",
-    command: "NI",
-    commandParameter: [],
-  };
-});
-
-// All frames parsed by the XBee will be emitted here
-
-// storage.listSensors().then((sensors) => sensors.forEach((sensor) => console.log(sensor.data())))
-xbeeAPI.parser.on("data", function (frame) {
-  //on new device is joined, register it
-  if (frame.digitalSamples) {
-    if (frame.digitalSamples.DIO0 === 1) {
-      var frame_obj = {
-        // AT Request to be sent
-        type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
-        destination64: "0013a20041fb76ea",
-        command: "D1",
-        commandParameter: [0x05],
-      };
-      xbeeAPI.builder.write(frame_obj);
-    } else {
-      var frame_obj = {
-        // AT Request to be sent
-        type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
-        destination64: "0013a20041fb76ea",
-        command: "D1",
-        commandParameter: [0x04],
-      };
-      xbeeAPI.builder.write(frame_obj);
+  configureBase("BASE_A", "0013A20041FB607D");
+  configureBase("BASE_B", "0013A20041A72946");
+  configureFlag("FLAG", getRandomTeam() === 0 ? "0013A20041FB607D" : "0013A20041A72946");
+  xbeeAPI.parser.on("data", function (frame) {
+    if (frame.type === C.FRAME_TYPE.NODE_IDENTIFICATION) {
+      configurePlayer(frame);
     }
-  }
+  });
 });
+
+function configureBase(baseName, destination64) {
+  var frame_obj = {
+    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+    destination64: destination64,
+    command: "CONFIGURE_BASE",
+    commandParameter: [baseName],
+  };
+  xbeeAPI.builder.write(frame_obj);
+}
+
+function configureFlag(flagName, destination64) {
+  var frame_obj = {
+    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+    destination64: destination64,
+    command: "CONFIGURE_FLAG",
+    commandParameter: [flagName],
+  };
+  xbeeAPI.builder.write(frame_obj);
+}
+
+function configurePlayer(frame) {
+  var playerId = frame.remote64;
+  var team = getRandomTeam();
+  var frame_obj = {
+    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+    destination64: playerId,
+    command: "CONFIGURE_PLAYER",
+    commandParameter: [team],
+  };
+  xbeeAPI.builder.write(frame_obj);
+  // publishToMQTT("player/register", JSON.stringify(playerData));
+}
+
+function getRandomTeam() {
+  return Math.floor(Math.random() * 2);
+}
+
+function publishToMQTT(topic, message) {
+  mqttClient.publish(topic, message, function (err) {
+    if (err) {
+      console.error("Erreur lors de la publication MQTT:", err);
+    } else {
+      console.log("Données publiées avec succès sur le topic:", topic);
+    }
+  });
+}
