@@ -3,6 +3,12 @@ var xbee_api = require("xbee-api");
 var C = xbee_api.constants;
 //var storage = require("./storage")
 require("dotenv").config();
+const mqtt = require("mqtt");
+const client = mqtt.connect("mqtt://mqtt-dashboard.com");
+
+client.on("connect", function () {
+  client.subscribe("IOT/CTF/test");
+});
 
 const SERIAL_PORT = process.env.SERIAL_PORT;
 
@@ -12,9 +18,7 @@ var xbeeAPI = new xbee_api.XBeeAPI({
 
 let serialport = new SerialPort(
   SERIAL_PORT,
-  {
-    baudRate: parseInt(process.env.SERIAL_BAUDRATE) || 9600,
-  },
+  { baudRate: parseInt(process.env.SERIAL_BAUDRATE) || 9600 },
   function (err) {
     if (err) {
       return console.log("Error: ", err.message);
@@ -28,7 +32,10 @@ xbeeAPI.builder.pipe(serialport);
 serialport.on("open", function () {
   configureBase("BASE_A", "0013A20041FB607D");
   configureBase("BASE_B", "0013A20041A72946");
-  configureFlag("FLAG", getRandomTeam() === 0 ? "0013A20041FB607D" : "0013A20041A72946");
+  configureFlag(
+    "FLAG",
+    getRandomTeam() === 0 ? "0013A20041FB607D" : "0013A20041A72946"
+  );
   xbeeAPI.parser.on("data", function (frame) {
     if (frame.type === C.FRAME_TYPE.NODE_IDENTIFICATION) {
       configurePlayer(frame);
@@ -74,7 +81,7 @@ function getRandomTeam() {
 }
 
 function publishToMQTT(topic, message) {
-  mqttClient.publish(topic, message, function (err) {
+  client.publish(topic, message, function (err) {
     if (err) {
       console.error("Erreur lors de la publication MQTT:", err);
     } else {
