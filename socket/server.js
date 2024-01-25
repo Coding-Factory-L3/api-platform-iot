@@ -8,6 +8,7 @@ const client = mqtt.connect("mqtt://mqtt-dashboard.com");
 
 client.on("connect", function () {
   client.subscribe("IOT/CTF/test");
+  client.subscribe("IOT/CTF/numberOfPlayers");
 });
 
 const SERIAL_PORT = process.env.SERIAL_PORT;
@@ -36,6 +37,15 @@ serialport.on("open", function () {
     "FLAG",
     getRandomTeam() === 0 ? "0013A20041FB607D" : "0013A20041A72946"
   );
+  client.on("message", function (topic, message) {
+    console.log(topic, message.toString());
+    var player = {
+      macadress: ["0013A20041FB607D", "0013A20041A72946", "0013A20041A72946"],
+    };
+    if (topic === "IOT/CTF/numberOfPlayers" && message.toString() === "get") {
+      client.publish("IOT/CTF/numberOfPlayers", JSON.stringify(player));
+    }
+  });
   xbeeAPI.parser.on("data", function (frame) {
     if (frame.type === C.FRAME_TYPE.NODE_IDENTIFICATION) {
       configurePlayer(frame);
@@ -74,6 +84,36 @@ function configurePlayer(frame) {
   };
   xbeeAPI.builder.write(frame_obj);
   // publishToMQTT("player/register", JSON.stringify(playerData));
+}
+
+function deadPlayer(playerId) {
+  var frame_obj = {
+    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+    destination64: playerId,
+    command: "DEAD_PLAYER",
+    commandParameter: [],
+  };
+  xbeeAPI.builder.write(frame_obj);
+}
+
+function flagCaptured(playerId) {
+  var frame_obj = {
+    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+    destination64: playerId,
+    command: "FLAG_CAPTURED",
+    commandParameter: [],
+  };
+  xbeeAPI.builder.write(frame_obj);
+}
+
+function revive(playerId) {
+  var frame_obj = {
+    type: C.FRAME_TYPE.REMOTE_AT_COMMAND_REQUEST,
+    destination64: playerId,
+    command: "REVIVE",
+    commandParameter: [],
+  };
+  xbeeAPI.builder.write(frame_obj);
 }
 
 function getRandomTeam() {
